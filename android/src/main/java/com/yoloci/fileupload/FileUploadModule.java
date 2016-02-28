@@ -1,6 +1,8 @@
 package com.yoloci.fileupload;
 
+import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReadableArray;
@@ -12,6 +14,9 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Callback;
 
 import java.io.DataInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.io.DataOutputStream;
@@ -20,6 +25,7 @@ import java.io.InputStreamReader;
 
 import com.facebook.react.bridge.WritableMap;
 import java.io.FileInputStream;
+import java.util.UUID;
 
 import org.json.JSONObject;
 
@@ -38,7 +44,7 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
     public void upload(final ReadableMap options, final Callback callback) {
         String lineEnd = "\r\n";
         String twoHyphens = "--";
-        String boundary =  "*****";
+        String boundary = "*****" + UUID.randomUUID().toString() + "*****";
 
         String uploadUrl = options.getString("uploadUrl");
         String method;
@@ -52,11 +58,8 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
         ReadableArray files = options.getArray("files");
         ReadableMap fields = options.getMap("fields");
 
-
-
         HttpURLConnection connection = null;
         DataOutputStream outputStream = null;
-        DataInputStream inputStream = null;
         URL connectURL = null;
         FileInputStream fileInputStream = null;
 
@@ -85,8 +88,6 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
                 connection.setRequestProperty(key, headers.getString(key));
             }
 
-
-
             connection.setRequestProperty("Connection", "Keep-Alive");
             connection.setRequestProperty("Content-Type", "multipart/form-data;boundary="+boundary);
 
@@ -103,17 +104,46 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
                 outputStream.writeBytes(lineEnd);
             }
 
+            if (fields.hasKey("scale")) {
+                double scale = fields.getDouble("scale");
+            }
+
+            if (fields.hasKey("compress")) {
+                double compress = fields.getDouble("compress");
+            }
 
             for (int i = 0; i < files.size(); i++) {
 
                 ReadableMap file = files.getMap(i);
+
                 String filename = file.getString("filename");
+                if (filename == null) {
+                    filename = "filename";
+                }
+                String name = file.getString("name");
+                if (name == null) {
+                    name = "name";
+                }
+
                 String filepath = file.getString("filepath");
-                filepath = filepath.replace("file://", "");
-                fileInputStream = new FileInputStream(filepath);
+
+                String path = null;
+                if (filepath.startsWith("file:") || filepath.startsWith("content:")) {
+                    path = (Uri.parse(filepath)).getPath();
+                }
+                else if ( this.isAbsolutePath(filepath)) {
+                    path = filepath;
+                }
+                else {
+                    Log.e("upload error", "Can't handle "+ filepath);
+                }
+
+                File f = new File(path);
+
+                fileInputStream = new FileInputStream(f);
 
                 outputStream.writeBytes(twoHyphens + boundary + lineEnd);
-                outputStream.writeBytes("Content-Disposition: form-data; name=\"image\";filename=\"" + filename + "\"" + lineEnd);
+                outputStream.writeBytes("Content-Disposition: form-data; name=\""+name+"\";filename=\"" + filename + "\"" + lineEnd);
                 outputStream.writeBytes(lineEnd);
 
                 bytesAvailable = fileInputStream.available();
@@ -136,16 +166,19 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
             outputStream.writeBytes(twoHyphens + boundary + twoHyphens + lineEnd);
 
             // Responses from the server (code and message)
-
             int serverResponseCode = connection.getResponseCode();
             String serverResponseMessage = connection.getResponseMessage();
             if (serverResponseCode != 200) {
-                fileInputStream.close();
+                if (fileInputStream != null) {
+                    fileInputStream.close();
+                }
                 outputStream.flush();
                 outputStream.close();
+
                 callback.invoke("Error happened: " + serverResponseMessage, null);
             } else {
-                BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                InputStream inputStream = connection.getInputStream();
+                BufferedReader br = new BufferedReader(new InputStreamReader(inputStream));
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = br.readLine()) != null) {
@@ -153,24 +186,28 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
                 }
                 br.close();
                 String data = sb.toString();
-                JSONObject mainObject = new JSONObject();
-                mainObject.put("data", data);
-                mainObject.put("status", serverResponseCode);
 
-                BundleJSONConverter bjc = new BundleJSONConverter();
-                Bundle bundle = bjc.convertToBundle(mainObject);
-                WritableMap map = Arguments.fromBundle(bundle);
-
-                fileInputStream.close();
+                if (fileInputStream != null) {
+                    fileInputStream.close();
+                }
+                inputStream.close();
                 outputStream.flush();
                 outputStream.close();
-                callback.invoke(null, map);
+
+                WritableMap result = Arguments.createMap();
+                result.putString("data", data);
+                result.putInt("status", serverResponseCode);
+                callback.invoke(null, result);
             }
 
-
-
         } catch(Exception ex) {
-            callback.invoke("Error happened: " + ex.getMessage(), null);
+            Log.e("upload error", ex.toString());
+            callback.invoke("Error happened: " + ex.toString(), null);
         }
     }
+
+    private boolean isAbsolutePath(String path) {
+        return (new File(path)).exists();
+    }
+
 }
