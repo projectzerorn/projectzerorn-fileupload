@@ -116,13 +116,14 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
 
                 ReadableMap file = files.getMap(i);
 
-                String filename = file.getString("filename");
-                if (filename == null) {
-                    filename = "filename";
+                String filename = "filename";
+                if (file.hasKey("filename")) {
+                    filename = file.getString("filename");
                 }
-                String name = file.getString("name");
-                if (name == null) {
-                    name = "name";
+
+                String name = "name";
+                if (file.hasKey("name")) {
+                    name = file.getString("name");
                 }
 
                 String filepath = file.getString("filepath");
@@ -152,7 +153,6 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
 
                 // Read file
                 bytesRead = fileInputStream.read(buffer, 0, bufferSize);
-
                 while (bytesRead > 0) {
                     outputStream.write(buffer, 0, bufferSize);
                     bytesAvailable = fileInputStream.available();
