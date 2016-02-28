@@ -1,5 +1,7 @@
 package com.yoloci.fileupload;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -13,6 +15,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Callback;
 
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -104,12 +107,17 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
                 outputStream.writeBytes(lineEnd);
             }
 
-            if (fields.hasKey("scale")) {
-                double scale = fields.getDouble("scale");
+            double scale = 1.0;
+            if (options.hasKey("scale")) {
+                scale = options.getDouble("scale");
             }
 
-            if (fields.hasKey("compress")) {
-                double compress = fields.getDouble("compress");
+            double compress = 1.0;
+            if (options.hasKey("compress")) {
+                compress = options.getDouble("compress");
+                if (compress > 1.0) {
+                    compress = 1.0;
+                }
             }
 
             for (int i = 0; i < files.size(); i++) {
@@ -141,23 +149,29 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
 
                 File f = new File(path);
 
-                fileInputStream = new FileInputStream(f);
-
                 outputStream.writeBytes(twoHyphens + boundary + lineEnd);
                 outputStream.writeBytes("Content-Disposition: form-data; name=\""+name+"\";filename=\"" + filename + "\"" + lineEnd);
                 outputStream.writeBytes(lineEnd);
 
-                bytesAvailable = fileInputStream.available();
-                bufferSize = Math.min(bytesAvailable, maxBufferSize);
-                buffer = new byte[bufferSize];
-
-                // Read file
-                bytesRead = fileInputStream.read(buffer, 0, bufferSize);
-                while (bytesRead > 0) {
-                    outputStream.write(buffer, 0, bufferSize);
+                if (scale >= 1.0) {
+                    fileInputStream = new FileInputStream(f);
                     bytesAvailable = fileInputStream.available();
                     bufferSize = Math.min(bytesAvailable, maxBufferSize);
+                    buffer = new byte[bufferSize];
+
+                    // Read file
                     bytesRead = fileInputStream.read(buffer, 0, bufferSize);
+                    while (bytesRead > 0) {
+                        outputStream.write(buffer, 0, bufferSize);
+                        bytesAvailable = fileInputStream.available();
+                        bufferSize = Math.min(bytesAvailable, maxBufferSize);
+                        bytesRead = fileInputStream.read(buffer, 0, bufferSize);
+                    }
+                }
+                else {
+                    Bitmap bitmap = scaleImage(path, scale);
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, (int)(100 * compress), outputStream);
+                    bitmap.recycle();
                 }
 
                 outputStream.writeBytes(lineEnd);
@@ -208,6 +222,27 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
 
     private boolean isAbsolutePath(String path) {
         return (new File(path)).exists();
+    }
+
+    private Bitmap scaleImage(String filepath, double scale) {
+
+        BitmapFactory.Options op = new BitmapFactory.Options();
+        op.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(filepath, op);
+        int width = op.outWidth;
+        int height = op.outHeight;
+
+        op.inJustDecodeBounds = false;
+        if (scale <= 0.0) {
+            op.outWidth = width;
+            op.outHeight = height;
+        }
+        else {
+            op.outWidth = (int)(width * scale);
+            op.outHeight = (int)(height * scale);
+        }
+        Bitmap bitmap = BitmapFactory.decodeFile(filepath, op);
+        return bitmap;
     }
 
 }

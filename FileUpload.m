@@ -163,7 +163,7 @@ RCT_EXPORT_METHOD(upload:(NSDictionary *)obj callback:(RCTResponseSenderBlock)ca
 
 - (UIImage *)scaledImage:(UIImage *)image scale:(CGFloat)scale
 {
-  if (scale == 1.0) {
+  if (scale >= 1.0) {
     return image;
   }
   if (scale==0) {
