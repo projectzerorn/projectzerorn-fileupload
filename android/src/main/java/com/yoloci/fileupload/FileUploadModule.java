@@ -1,36 +1,31 @@
 package com.yoloci.fileupload;
 
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
-import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Log;
 
 import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.ReadableArray;
-import com.facebook.react.bridge.ReadableMap;
-import com.facebook.react.bridge.ReadableMapKeySetIterator;
+import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
-import com.facebook.react.bridge.Callback;
+import com.facebook.react.bridge.ReadableArray;
+import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.ReadableMapKeySetIterator;
+import com.facebook.react.bridge.WritableMap;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.File;
-import java.io.IOException;
+import java.io.FileInputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.io.DataOutputStream;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-
-import com.facebook.react.bridge.WritableMap;
-import java.io.FileInputStream;
 import java.util.UUID;
-
-import org.json.JSONObject;
 
 public class FileUploadModule extends ReactContextBaseJavaModule {
 
@@ -135,19 +130,14 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
                 }
 
                 String filepath = file.getString("filepath");
-
-                String path = null;
-                if (filepath.startsWith("file:") || filepath.startsWith("content:")) {
-                    path = (Uri.parse(filepath)).getPath();
+                Uri uri = Uri.parse(filepath);
+                if (filepath.startsWith("content")) {
+                    filepath = getFilePathFromUri(uri);
                 }
-                else if ( this.isAbsolutePath(filepath)) {
-                    path = filepath;
+                else if (filepath.startsWith("file")) {
+                    filepath = uri.getPath();
                 }
-                else {
-                    Log.e("upload error", "Can't handle "+ filepath);
-                }
-
-                File f = new File(path);
+                File f = new File(filepath);
 
                 outputStream.writeBytes(twoHyphens + boundary + lineEnd);
                 outputStream.writeBytes("Content-Disposition: form-data; name=\""+name+"\";filename=\"" + filename + "\"" + lineEnd);
@@ -169,7 +159,7 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
                     }
                 }
                 else {
-                    Bitmap bitmap = scaleImage(path, scale);
+                    Bitmap bitmap = scaleImage(filepath, scale);
                     bitmap.compress(Bitmap.CompressFormat.JPEG, (int)(100 * compress), outputStream);
                     bitmap.recycle();
                 }
@@ -215,13 +205,24 @@ public class FileUploadModule extends ReactContextBaseJavaModule {
             }
 
         } catch(Exception ex) {
-            Log.e("upload error", ex.toString());
+            Log.e("file upload error", ex.toString());
             callback.invoke("Error happened: " + ex.toString(), null);
         }
     }
 
-    private boolean isAbsolutePath(String path) {
-        return (new File(path)).exists();
+    private String getFilePathFromUri(Uri uri) {
+
+        String ret = "";
+        String[] projection = { MediaStore.Images.Media.DATA};
+        Cursor cursor = getReactApplicationContext().getContentResolver().query(uri, projection, null, null, null);
+        if(cursor!=null){
+            if (cursor.moveToFirst()) {
+                int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+                ret = cursor.getString(column_index);
+            }
+            cursor.close();
+        }
+        return ret;
     }
 
     private Bitmap scaleImage(String filepath, double scale) {
