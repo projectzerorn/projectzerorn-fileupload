@@ -1,13 +1,11 @@
+#import "FileUpload.h"
+
 #import <Foundation/Foundation.h>
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <UIKit/UIKit.h>
 #import <AssetsLibrary/AssetsLibrary.h>
 
-#import "RCTBridgeModule.h"
 #import "RCTLog.h"
-
-@interface FileUpload : NSObject <RCTBridgeModule>
-@end
 
 @implementation FileUpload
 
