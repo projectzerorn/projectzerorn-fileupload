@@ -1,5 +1,5 @@
 {
-  "name": "react-native-fileupload",
+  "name": "projectzerorn-fileupload",
   "version": "1.1.0",
   "description": "A file upload plugin for react-native",
   "main": "index.js",
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/PhilippKrone/react-native-fileupload.git"
+    "url": "https://github.com/projectzerorn/projectzerorn-fileupload"
   },
   "keywords": [
     "react-component",
